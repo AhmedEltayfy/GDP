@@ -1,61 +1,58 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 from sklearn.linear_model import LinearRegression
-import numpy as np
-import io
-from datetime import datetime
 
+# إعداد الصفحة
 st.set_page_config(page_title="GDP Forecasting App", layout="wide")
 
-st.title("📊 GDP Analysis and Forecasting App")
+# عنوان التطبيق
+st.title("🌍 GDP Analysis and Forecasting App")
 
-uploaded_file = st.file_uploader("Upload your GDP data (CSV)", type=["csv"])
-
-if uploaded_file:
+# تحميل البيانات من المستخدم
+uploaded_file = st.file_uploader("📤 Upload your GDP data (CSV file)", type=["csv"])
+if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
-    if 'Year' not in df.columns or 'GDP' not in df.columns:
-        st.error("CSV file must contain 'Year' and 'GDP' columns.")
-    else:
-        df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
-        df['GDP'] = pd.to_numeric(df['GDP'], errors='coerce')
-        df.dropna(inplace=True)
+    # التحقق من الأعمدة
+    if 'Year' in df.columns and 'GDP' in df.columns:
+        st.success("✅ Data loaded successfully!")
 
-        st.subheader("📈 Historical GDP Data")
+        # عرض البيانات الأصلية
+        st.subheader("📊 Original Data")
         st.dataframe(df)
 
-        fig = px.line(df, x="Year", y="GDP", title="GDP Over the Years")
+        # رسم البيانات الأصلية
+        fig = px.line(df, x='Year', y='GDP', title='GDP Over Time')
         st.plotly_chart(fig, use_container_width=True)
 
-        forecast_years = st.slider("📅 How many future years to forecast?", 1, 10, 5)
+        # إعداد النموذج
+        X = df['Year'].values.reshape(-1, 1)
+        y = df['GDP'].values
 
         model = LinearRegression()
-        model.fit(df[['Year']], df['GDP'])
+        model.fit(X, y)
 
-        future_years = pd.DataFrame({
-            'Year': range(df['Year'].max() + 1, df['Year'].max() + forecast_years + 1)
-        })
+        # تحديد عدد السنوات المستقبلية للتنبؤ
+        forecast_years = st.slider("📅 Years to Forecast", 1, 10, 5)
 
-        future_preds = model.predict(future_years)
+        # إنشاء بيانات السنوات المستقبلية
+        last_year = df['Year'].max()
+        future_years = np.arange(last_year + 1, last_year + forecast_years + 1).reshape(-1, 1)
+        predictions = model.predict(future_years)
 
-        forecast_df = pd.concat([
-            df,
-            pd.DataFrame({'Year': future_years['Year'], 'GDP': future_preds})
-        ], ignore_index=True)
+        forecast_df = pd.DataFrame({'Year': future_years.flatten(), 'GDP': predictions})
 
-        st.subheader("📉 Forecasted GDP")
-        fig2 = px.line(forecast_df, x="Year", y="GDP", title="Forecasted GDP")
-        st.plotly_chart(fig2, use_container_width=True)
+        st.subheader("🔮 Forecasted GDP")
+        st.dataframe(forecast_df)
 
-        # Export forecast as CSV
-        buffer = io.StringIO()
-        forecast_df.to_csv(buffer, index=False)
-        st.download_button(
-            label="📥 Download Forecast Data as CSV",
-            data=buffer.getvalue(),
-            file_name=f"gdp_forecast_{datetime.now().year}.csv",
-            mime="text/csv"
-        )
+        # دمج البيانات الأصلية والمتوقعة للرسم
+        combined_df = pd.concat([df, forecast_df], ignore_index=True)
+
+        fig_forecast = px.line(combined_df, x='Year', y='GDP', title='GDP Forecast')
+        st.plotly_chart(fig_forecast, use_container_width=True)
+    else:
+        st.error("❌ CSV file must contain 'Year' and 'GDP' columns.")
 else:
-    st.info("Please upload a CSV file with 'Year' and 'GDP' columns to begin.")
+    st.info("📄 Please upload a CSV file to begin.")
